@@ -803,6 +803,16 @@ boardWrap.addEventListener("pointercancel", endDrag, { passive: false });
 boardWrap.addEventListener("pointerleave", endDrag, { passive: false });
 
 
+// ================================ Prevents Zooming in on IOS ================================ //
+const stage = document.getElementById("stage");
+let lastTapTime = 0;
+stage.addEventListener("touchend", (e) => {
+	const now = Date.now();
+	if (now - lastTapTime < 300) e.preventDefault();
+	lastTapTime = now;
+}, { passive: false });
+
+
 // ================================ Game Loop ================================ //
 function tick(t) {
 	const dt = t - lastTime;
