@@ -32,7 +32,7 @@ html,body{
 	width:670px;
 	height:970px;
 	transform: scale(var(--scale, 1));
-	transform-origin: top left;
+	transform-origin: center center;
 	user-select:none;
 	-webkit-user-select:none;
 }
@@ -265,4 +265,5 @@ canvas{
 	transform: translateY(1px);
 	background:rgba(255,255,255,0.18);
 }
+
 .padMid{ width:300px; }
