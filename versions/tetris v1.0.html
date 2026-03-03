@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tetris 10×18 (PNG tiles)</title>
+  <style>
+    :root { --tile: 50px; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #0b0f19;
+      color: #e8eefc;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+    }
+    .wrap {
+      display: grid;
+      grid-template-columns: auto 240px;
+      gap: 18px;
+      align-items: start;
+      padding: 18px;
+    }
+    .panel {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 14px;
+      backdrop-filter: blur(6px);
+    }
+    canvas {
+      display: block;
+      background: #050713;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 16px;
+      image-rendering: pixelated;
+    }
+    .hud h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      letter-spacing: 0.2px;
+      opacity: 0.95;
+    }
+    .row { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0; }
+    .k { opacity: 0.8; }
+    .v { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .small { font-size: 12px; opacity: 0.8; line-height: 1.35; margin-top: 10px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .canvStack { display: grid; gap: 12px; }
+    .subTitle { margin: 0 0 6px; font-size: 12px; opacity: 0.85; }
+    @media (max-width: 860px) {
+      .wrap { grid-template-columns: 1fr; justify-items: center; }
+      .panel { width: min(520px, 92vw); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <!-- Main board: 10 columns × 18 rows, each tile 50×50 => 500×900 -->
+      <canvas id="board" width="500" height="900" aria-label="Tetris board"></canvas>
+    </div>
+
+    <div class="panel hud">
+      <h2>Tetris 10×18</h2>
+
+      <div class="row"><div class="k">Score</div><div class="v" id="score">0</div></div>
+      <div class="row"><div class="k">Lines</div><div class="v" id="lines">0</div></div>
+      <div class="row"><div class="k">Level</div><div class="v" id="level">1</div></div>
+      <div class="row"><div class="k">State</div><div class="v" id="state">Loading…</div></div>
+
+      <div class="canvStack" style="margin-top:12px">
+        <div>
+          <p class="subTitle">Next</p>
+          <canvas id="next" width="200" height="200"></canvas>
+        </div>
+        <div>
+          <p class="subTitle">Hold (press C)</p>
+          <canvas id="hold" width="200" height="200"></canvas>
+        </div>
+      </div>
+
+      <div class="badge" id="assetStatus">Assets: checking…</div>
+
+      <div class="small">
+        Controls:<br>
+        ← → move, ↓ soft drop, ↑ rotate, Space hard drop<br>
+        C hold, P pause, R restart
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /***********************
+     * 1) YOUR ASSET MAP
+     * Put your 50×50 PNG tiles in the same folder as this HTML,
+     * named like block_cyan.png, block_yellow.png, etc.
+     * If your names differ, just change the paths below.
+     ***********************/
+    const ASSET_MAP = {
+      cyan:   "./asset/blocks/block_cyan.png",   // I
+      yellow: "./asset/blocks/block_yellow.png", // O
+      purple: "./asset/blocks/block_purple.png", // T
+      green:  "./asset/blocks/block_green.png",  // S
+      red:    "./asset/blocks/block_light_red.png",    // Z
+      blue:   "./asset/blocks/block_blue.png",   // J
+      orange: "./asset/blocks/block_red.png", // L
+      // Optional: a background tile if you have one (otherwise board is plain)
+      // empty: "block_empty.png",
+    };
+
+    /***********************
+     * 2) GAME CONSTANTS
+     ***********************/
+    const COLS = 10;
+    const ROWS = 18;
+    const TILE = 50;
+
+    // Scoring (classic-ish)
+    const LINE_POINTS = [0, 100, 300, 500, 800]; // 0..4 lines
+    const DROP_SOFT = 1;
+    const DROP_HARD = 2;
+
+    // Gravity timing
+    function levelToMs(level) {
+      // Faster as level increases, but keep a floor so it doesn't get silly
+      return Math.max(70, 700 - (level - 1) * 55);
+    }
+
+    /***********************
+     * 3) TETROMINO DEFINITIONS
+     * Each piece uses a list of 4 rotations.
+     * Each rotation is an array of [x,y] blocks in a 4×4 space.
+     ***********************/
+    const PIECES = {
+      I: {
+        key: "cyan",
+        rots: [
+          [[0,1],[1,1],[2,1],[3,1]],
+          [[2,0],[2,1],[2,2],[2,3]],
+          [[0,2],[1,2],[2,2],[3,2]],
+          [[1,0],[1,1],[1,2],[1,3]],
+        ],
+      },
+      O: {
+        key: "yellow",
+        rots: [
+          [[1,1],[2,1],[1,2],[2,2]],
+          [[1,1],[2,1],[1,2],[2,2]],
+          [[1,1],[2,1],[1,2],[2,2]],
+          [[1,1],[2,1],[1,2],[2,2]],
+        ],
+      },
+      T: {
+        key: "purple",
+        rots: [
+          [[1,1],[0,2],[1,2],[2,2]],
+          [[1,1],[1,2],[2,2],[1,3]],
+          [[0,2],[1,2],[2,2],[1,3]],
+          [[1,1],[0,2],[1,2],[1,3]],
+        ],
+      },
+      S: {
+        key: "green",
+        rots: [
+          [[1,1],[2,1],[0,2],[1,2]],
+          [[1,1],[1,2],[2,2],[2,3]],
+          [[1,2],[2,2],[0,3],[1,3]],
+          [[0,1],[0,2],[1,2],[1,3]],
+        ],
+      },
+      Z: {
+        key: "red",
+        rots: [
+          [[0,1],[1,1],[1,2],[2,2]],
+          [[2,1],[1,2],[2,2],[1,3]],
+          [[0,2],[1,2],[1,3],[2,3]],
+          [[1,1],[0,2],[1,2],[0,3]],
+        ],
+      },
+      J: {
+        key: "blue",
+        rots: [
+          [[0,1],[0,2],[1,2],[2,2]],
+          [[1,1],[2,1],[1,2],[1,3]],
+          [[0,2],[1,2],[2,2],[2,3]],
+          [[1,1],[1,2],[0,3],[1,3]],
+        ],
+      },
+      L: {
+        key: "orange",
+        rots: [
+          [[2,1],[0,2],[1,2],[2,2]],
+          [[1,1],[1,2],[1,3],[2,3]],
+          [[0,2],[1,2],[2,2],[0,3]],
+          [[0,1],[1,1],[1,2],[1,3]],
+        ],
+      },
+    };
+
+    const PIECE_TYPES = Object.keys(PIECES);
+
+    /***********************
+     * 4) CANVASES / UI
+     ***********************/
+    const boardCanvas = document.getElementById("board");
+    const boardCtx = boardCanvas.getContext("2d");
+    const nextCanvas = document.getElementById("next");
+    const nextCtx = nextCanvas.getContext("2d");
+    const holdCanvas = document.getElementById("hold");
+    const holdCtx = holdCanvas.getContext("2d");
+
+    const elScore = document.getElementById("score");
+    const elLines = document.getElementById("lines");
+    const elLevel = document.getElementById("level");
+    const elState = document.getElementById("state");
+    const elAssetStatus = document.getElementById("assetStatus");
+
+    /***********************
+     * 5) IMAGE LOADING
+     ***********************/
+    const images = {};     // key -> HTMLImageElement
+    const imageReady = {}; // key -> boolean
+
+    function loadImages(map) {
+      const keys = Object.keys(map);
+      let loaded = 0;
+
+      return new Promise((resolve) => {
+        if (keys.length === 0) resolve();
+
+        keys.forEach((k) => {
+          const img = new Image();
+          images[k] = img;
+          imageReady[k] = false;
+
+          img.onload = () => {
+            imageReady[k] = true;
+            loaded++;
+            if (loaded === keys.length) resolve();
+          };
+          img.onerror = () => {
+            // We'll allow the game to run with fallback rectangles
+            loaded++;
+            if (loaded === keys.length) resolve();
+          };
+
+          img.src = map[k];
+        });
+      });
+    }
+
+    function hasAllCoreTiles() {
+      const core = ["cyan","yellow","purple","green","red","blue","orange"];
+      return core.every(k => imageReady[k]);
+    }
+
+    /***********************
+     * 6) GAME STATE
+     ***********************/
+    let board;
+    let score;
+    let lines;
+    let level;
+
+    let bag = [];
+    let current = null;
+    let next = null;
+
+    let hold = null;
+    let holdUsed = false;
+
+    let paused = false;
+    let gameOver = false;
+
+    // Timing
+    let lastTime = 0;
+    let dropAcc = 0;
+    let dropMs = levelToMs(1);
+
+    function newBoard() {
+      const b = [];
+      for (let r = 0; r < ROWS; r++) {
+        b.push(new Array(COLS).fill(null));
+      }
+      return b;
+    }
+
+    function refillBag() {
+      bag = PIECE_TYPES.slice();
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [bag[i], bag[j]] = [bag[j], bag[i]];
+      }
+    }
+
+    function takeFromBag() {
+      if (bag.length === 0) refillBag();
+      return bag.pop();
+    }
+
+    function spawnPiece(type) {
+      const p = PIECES[type];
+      return {
+        type,
+        key: p.key,
+        rot: 0,
+        x: 3,   // spawn near center (4-wide pieces)
+        y: -2,  // allow a bit above top
+      };
+    }
+
+    function cellsOf(piece) {
+      const shape = PIECES[piece.type].rots[piece.rot];
+      return shape.map(([dx, dy]) => [piece.x + dx, piece.y + dy]);
+    }
+
+    function collides(piece) {
+      for (const [x, y] of cellsOf(piece)) {
+        if (x < 0 || x >= COLS) return true;
+        if (y >= ROWS) return true;
+        if (y >= 0 && board[y][x]) return true;
+      }
+      return false;
+    }
+
+    function lockPiece() {
+      for (const [x, y] of cellsOf(current)) {
+        if (y < 0) { // locked above top => game over
+          gameOver = true;
+          return;
+        }
+        board[y][x] = current.key;
+      }
+      clearLines();
+      holdUsed = false;
+      current = next;
+      next = spawnPiece(takeFromBag());
+      if (collides(current)) gameOver = true;
+    }
+
+    function clearLines() {
+      let cleared = 0;
+
+      for (let y = ROWS - 1; y >= 0; y--) {
+        if (board[y].every(cell => cell !== null)) {
+          board.splice(y, 1);
+          board.unshift(new Array(COLS).fill(null));
+          cleared++;
+          y++; // re-check this row index after shifting
+        }
+      }
+
+      if (cleared > 0) {
+        lines += cleared;
+        score += LINE_POINTS[cleared] * level;
+
+        // Level up every 10 lines
+        const newLevel = Math.floor(lines / 10) + 1;
+        if (newLevel !== level) {
+          level = newLevel;
+          dropMs = levelToMs(level);
+        }
+      }
+    }
+
+    function hardDrop() {
+      if (gameOver || paused) return;
+      let moved = 0;
+      while (true) {
+        const test = { ...current, y: current.y + 1 };
+        if (collides(test)) break;
+        current = test;
+        moved++;
+      }
+      score += moved * DROP_HARD;
+      lockPiece();
+    }
+
+    function softDrop() {
+      if (gameOver || paused) return;
+      const test = { ...current, y: current.y + 1 };
+      if (!collides(test)) {
+        current = test;
+        score += DROP_SOFT;
+      } else {
+        lockPiece();
+      }
+    }
+
+    function move(dx) {
+      if (gameOver || paused) return;
+      const test = { ...current, x: current.x + dx };
+      if (!collides(test)) current = test;
+    }
+
+    function rotate(dir) {
+      if (gameOver || paused) return;
+      const nextRot = (current.rot + dir + 4) % 4;
+      const base = { ...current, rot: nextRot };
+
+      // Small "wall kick" attempts
+      const kicks = [0, -1, 1, -2, 2];
+      for (const k of kicks) {
+        const test = { ...base, x: base.x + k };
+        if (!collides(test)) {
+          current = test;
+          return;
+        }
+      }
+      // If all fail, rotation is ignored
+    }
+
+    function holdPiece() {
+      if (gameOver || paused) return;
+      if (holdUsed) return;
+
+      holdUsed = true;
+
+      if (!hold) {
+        hold = current.type;
+        current = next;
+        next = spawnPiece(takeFromBag());
+      } else {
+        const tmp = hold;
+        hold = current.type;
+        current = spawnPiece(tmp);
+      }
+
+      // reset spawn position/rotation
+      current.x = 3;
+      current.y = -2;
+      current.rot = 0;
+
+      if (collides(current)) gameOver = true;
+    }
+
+    function restart() {
+      board = newBoard();
+      score = 0;
+      lines = 0;
+      level = 1;
+      dropMs = levelToMs(level);
+
+      refillBag();
+      current = spawnPiece(takeFromBag());
+      next = spawnPiece(takeFromBag());
+
+      hold = null;
+      holdUsed = false;
+
+      paused = false;
+      gameOver = false;
+      dropAcc = 0;
+
+      setStateText();
+      drawAll();
+    }
+
+    function togglePause() {
+      if (gameOver) return;
+      paused = !paused;
+      setStateText();
+    }
+
+    function setStateText() {
+      if (gameOver) elState.textContent = "Game Over";
+      else if (paused) elState.textContent = "Paused";
+      else elState.textContent = "Playing";
+    }
+
+    /***********************
+     * 7) RENDERING
+     ***********************/
+    function clearCanvas(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+    }
+
+    function drawTile(ctx, key, x, y, size) {
+      const px = x * size;
+      const py = y * size;
+
+      if (imageReady[key] && images[key]) {
+        ctx.drawImage(images[key], px, py, size, size);
+      } else {
+        // Fallback if the PNG is missing: draw a simple block
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = "rgba(255,255,255,0.18)";
+        ctx.fillRect(px, py, size, size);
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.strokeRect(px + 1, py + 1, size - 2, size - 2);
+        ctx.restore();
+      }
+    }
+
+    function drawGridLines(ctx) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.06)";
+      for (let x = 1; x < COLS; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * TILE, 0);
+        ctx.lineTo(x * TILE, ROWS * TILE);
+        ctx.stroke();
+      }
+      for (let y = 1; y < ROWS; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * TILE);
+        ctx.lineTo(COLS * TILE, y * TILE);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawBoard() {
+      clearCanvas(boardCtx, boardCanvas.width, boardCanvas.height);
+
+      // settled blocks
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const cell = board[y][x];
+          if (cell) drawTile(boardCtx, cell, x, y, TILE);
+        }
+      }
+
+      // current piece
+      if (current && !gameOver) {
+        for (const [x, y] of cellsOf(current)) {
+          if (y >= 0) drawTile(boardCtx, current.key, x, y, TILE);
+        }
+      }
+
+      drawGridLines(boardCtx);
+
+      // overlay text for game over
+      if (gameOver) {
+        boardCtx.save();
+        boardCtx.fillStyle = "rgba(0,0,0,0.55)";
+        boardCtx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
+        boardCtx.fillStyle = "rgba(255,255,255,0.95)";
+        boardCtx.font = "700 48px system-ui, sans-serif";
+        boardCtx.textAlign = "center";
+        boardCtx.fillText("GAME OVER", boardCanvas.width / 2, boardCanvas.height / 2 - 10);
+        boardCtx.font = "500 18px system-ui, sans-serif";
+        boardCtx.fillText("Press R to restart", boardCanvas.width / 2, boardCanvas.height / 2 + 28);
+        boardCtx.restore();
+      }
+    }
+
+    function drawMini(ctx, type) {
+      clearCanvas(ctx, 200, 200);
+      if (!type) return;
+
+      const piece = spawnPiece(type);
+      piece.x = 0;
+      piece.y = 0;
+      piece.rot = 0;
+
+      // Center it in the 4×4 preview area
+      const shape = PIECES[type].rots[0];
+      // draw into a 4x4 grid on 200x200, tile=50
+      for (const [dx, dy] of shape) {
+        drawTile(ctx, PIECES[type].key, dx, dy, 50);
+      }
+
+      // subtle grid
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.06)";
+      for (let i = 1; i < 4; i++) {
+        ctx.beginPath(); ctx.moveTo(i*50, 0); ctx.lineTo(i*50, 200); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i*50); ctx.lineTo(200, i*50); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawHUD() {
+      elScore.textContent = String(score);
+      elLines.textContent = String(lines);
+      elLevel.textContent = String(level);
+      setStateText();
+      drawMini(nextCtx, next?.type);
+      drawMini(holdCtx, hold);
+    }
+
+    function drawAll() {
+      drawBoard();
+      drawHUD();
+    }
+
+    /***********************
+     * 8) GAME LOOP
+     ***********************/
+    function tick(t) {
+      const dt = t - lastTime;
+      lastTime = t;
+
+      if (!paused && !gameOver) {
+        dropAcc += dt;
+
+        while (dropAcc >= dropMs) {
+          dropAcc -= dropMs;
+          const test = { ...current, y: current.y + 1 };
+          if (!collides(test)) {
+            current = test;
+          } else {
+            lockPiece();
+            if (gameOver) break;
+          }
+        }
+      }
+
+      drawAll();
+      requestAnimationFrame(tick);
+    }
+
+    /***********************
+     * 9) INPUT
+     ***********************/
+    window.addEventListener("keydown", (e) => {
+      const k = e.key;
+
+      // prevent page scrolling with arrows/space
+      if (["ArrowLeft","ArrowRight","ArrowDown","ArrowUp"," "].includes(k)) e.preventDefault();
+
+      if (k === "p" || k === "P") togglePause();
+      if (k === "r" || k === "R") restart();
+
+      if (paused || gameOver) {
+        drawAll();
+        return;
+      }
+
+      if (k === "ArrowLeft") move(-1);
+      else if (k === "ArrowRight") move(1);
+      else if (k === "ArrowDown") softDrop();
+      else if (k === "ArrowUp") rotate(1);
+      else if (k === " ") hardDrop();
+      else if (k === "c" || k === "C") holdPiece();
+
+      drawAll();
+    });
+
+    /***********************
+     * 10) BOOT
+     ***********************/
+    (async function boot() {
+      elState.textContent = "Loading…";
+      elAssetStatus.textContent = "Assets: loading…";
+
+      await loadImages(ASSET_MAP);
+
+      if (hasAllCoreTiles()) {
+        elAssetStatus.textContent = "Assets: OK (PNG tiles loaded)";
+      } else {
+        elAssetStatus.textContent = "Assets: some missing (using fallback blocks)";
+      }
+
+      restart();
+      lastTime = performance.now();
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>

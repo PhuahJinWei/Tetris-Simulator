@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+	<title>Tetris Simulator</title>
+	<link rel="icon" type="image/png" href="./asset/UI/html_icon.png">
+	<link rel="stylesheet" type="text/css" href=./asset/tetrisCSS.css>
+</head>
+
+<body>
+	<div class="frame">
+	<div class="stageWrap">
+	<div class="stage" id="stage">
+		
+		<!-- ------------------- Scoreboard ------------------- -->
+		<div class="topbar">
+			<div class="topLeft">
+				<button class="iconBtn" id="pauseBtn" aria-label="Pause/Resume">⏸</button>
+				<button class="iconBtn" id="volBtn" aria-label="Volume">🔇</button>
+			</div>
+			<div class="scoreWrap">
+				<div class="scoreLabel">Score</div>
+				<div class="scoreValue" id="score">0</div>
+			</div>
+		</div>
+		
+		
+		<!-- ------------------- Game Canvas ------------------- -->
+		<div class="boardWrap" id="boardWrap">
+			<canvas id="board"></canvas>
+			<div class="pads"><button class="padBtn padMid" id="btnDown" aria-label="Drop">▼</button></div>
+		</div>
+		
+		
+		<!-- ------------------- Side Bar ------------------- -->
+		<div class="side">
+			<div class="nextPanel">
+				<div class="panelTitle">Next</div>
+				<div class="nextStack">
+					<div class="miniBox"><canvas id="next0"></canvas></div>
+					<div class="miniBox"><canvas id="next1"></canvas></div>
+					<div class="miniBox"><canvas id="next2"></canvas></div>
+				</div>
+			</div>
+			
+			<div class="hintBlock">
+				<div class="hintTabs">
+					<button class="hintTab" id="tabKeyboard" type="button" aria-pressed="true">
+					<img class="hintTabIcon" src="./asset/keys/keyboard.png" alt="Keyboard">
+					</button>
+					
+					<button class="hintTab" id="tabMobile" type="button" aria-pressed="false">
+					<img class="hintTabIcon" src="./asset/keys/touch_screen.png" alt="Mobile">
+					</button>
+				</div>
+
+				<div class="hint" id="hintPanel">
+					<!-- ---------------------------- Keyboard ---------------------------- -->
+					<div id="hintKeyboard">
+						<div class="hintRow">
+							<div class="hintIcons">
+								<img class="hintIcon" src="./asset/keys/keyboard_arrows_left_outline.png" alt="Left">
+								<img class="hintIcon" src="./asset/keys/keyboard_arrows_right_outline.png" alt="Right">
+							</div>
+							<div>Move</div>
+						</div>
+						<div class="hintRow">
+							<div class="hintIcons">
+							<img class="hintIcon" src="./asset/keys/keyboard_arrows_up_outline.png" alt="Up">
+							</div>
+							<div>Rotate</div>
+						</div>
+						<div class="hintRow">
+							<div class="hintIcons">
+							<img class="hintIcon" src="./asset/keys/keyboard_arrows_down_outline.png" alt="Down">
+							</div>
+							<div>Soft drop (hold)</div>
+						</div>
+						<div class="hintRow">
+							<div class="hintIcons">
+							<img class="hintIcon" src="./asset/keys/keyboard_space_icon_outline.png" alt="Space">
+							</div>
+							<div>Hard drop</div>
+						</div>
+						<div class="hintRow">
+							<div class="hintIcons">
+							<img class="hintIcon" src="./asset/keys/keyboard_c_outline.png" alt="Space">
+							</div>
+							<div>Hold</div>
+						</div>
+					</div>
+					<!-- ---------------------------- Mobile ---------------------------- -->
+					<div id="hintMobile" style="display:none">
+						<div class="hintRow">
+							<div class="hintIcons">
+								<img class="hintIcon" src="./asset/keys/touch_swipe_horizontal.png" alt="Drag Left & Right">
+							</div>
+							<div>Move</div>
+						</div>
+						<div class="hintRow">
+							<div class="hintIcons">
+							<img class="hintIcon" src="./asset/keys/touch_tap.png" alt="Tap">
+							</div>
+							<div>tap board to Rotate</div>
+						</div>
+						<div class="hintRow">
+							<div class="hintIcons">
+							<img class="hintIcon" src="./asset/keys/keyboard_arrow_down_outline.png" alt="Down">
+							</div>
+							<div>Tap to hard drop / Hold to slow drop</div>
+						</div>
+						<div class="hintRow">
+							<div class="hintIcons">
+							<img class="hintIcon" src="./asset/keys/touch_hold.png" alt="Hold">
+							</div>
+							<div>tap Hold box</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="holdPanel">
+				<div class="panelTitle">Hold</div>
+				<div class="holdBtn" id="holdBtn" aria-label="Hold piece">
+					<canvas id="hold"></canvas>
+				</div>
+			</div>
+			
+        </div>
+
+	</div>
+	</div>
+	</div>
+  
+	<script src="./asset/tetrisScript.js"></script>
+  
+</body>
+</html>
