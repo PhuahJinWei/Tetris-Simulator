@@ -1,6 +1,6 @@
 # Tetris-Simulator
 
-## Instantly Play ---> <a href="https://phuahjinwei.github.io/Suika-Simulator/src/suikeGame.html">here</a>
+## Instantly Play ---> [Here](https://phuahjinwei.github.io/Tetris-Simulator/)
 <br/>
 <img src="" alt="demoPic" width="70%">
 <br/>
