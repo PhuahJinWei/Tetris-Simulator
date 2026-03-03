@@ -11,7 +11,7 @@ html,body{
 	color:var(--ink);
 	font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 	overflow:hidden;
-	touch-action:none;
+	touch-action:manipulation;
 }
 
 .frame{
@@ -272,3 +272,7 @@ canvas{
 	background:rgba(255,255,255,0.18);
 }
 .padMid{ width:300px; }
+
+.boardWrap, .pads, .padBtn, .holdBtn, .iconBtn, canvas {
+  touch-action: none; /* game should capture gestures */
+}
