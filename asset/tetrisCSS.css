@@ -25,13 +25,15 @@ html,body{
 	width:100%;
 	height:100%;
 	display:grid;
-	place-items:center;
+	place-items:relative;
 }
 .stage{
-	position:relative;
+	position:absolute;
+	left:50%;
+	top:50%;
 	width:670px;
 	height:970px;
-	transform: scale(var(--scale, 1));
+	transform: translate(-50%, -50%) scale(var(--scale, 1));
 	transform-origin: center center;
 	user-select:none;
 	-webkit-user-select:none;
@@ -265,5 +267,4 @@ canvas{
 	transform: translateY(1px);
 	background:rgba(255,255,255,0.18);
 }
-
 .padMid{ width:300px; }
