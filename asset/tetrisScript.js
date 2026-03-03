@@ -108,9 +108,14 @@ function setupCanvases() {
 	setupHiDPI(holdCanvas, 140, 110);
 }
 function fitStage() {
+	const vv = window.visualViewport;
+	const vw = vv ? vv.width : window.innerWidth;
+	const vh = vv ? vv.height : window.innerHeight;
+
 	const pad = 20;
-	const availW = Math.max(50, window.innerWidth - pad);
-	const availH = Math.max(50, window.innerHeight - pad);
+	const availW = Math.max(50, vw - pad);
+	const availH = Math.max(50, vh - pad);
+
 	const nativeW = 670, nativeH = 970;
 	const s = Math.min(availW / nativeW, availH / nativeH);
 	stageEl.style.setProperty("--scale", String(s));
@@ -843,6 +848,10 @@ function boot() {
 	setupCanvases();
 	fitStage();
 	window.addEventListener("resize", () => { setupCanvases(); fitStage(); renderAll(); }, {passive:true});
+	if (window.visualViewport) {
+		window.visualViewport.addEventListener("resize", () => { setupCanvases(); fitStage(); renderAll(); }, {passive:true});
+		window.visualViewport.addEventListener("scroll", () => { fitStage(); }, {passive:true});
+	}
 
 	volBtn.textContent = VOL_STATES[volIndex].icon;
 	applyVolumes();
